@@ -1,0 +1,75 @@
+{
+  "name": "dsh-branch-studio",
+  "version": "0.1.0",
+  "description": "Parallel branch studio for DeepSeek Harness: fan out isolated branches from the current session, run each with its own model and prompt, compare answers/files/verification, and promote the winner back into the workspace.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "branch",
+    "fork",
+    "parallel",
+    "worktree",
+    "exploration"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "yasaxiwind",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yasaxiwind/dsh-branch-studio.git"
+  },
+  "homepage": "https://github.com/yasaxiwind/dsh-branch-studio#readme",
+  "bugs": {
+    "url": "https://github.com/yasaxiwind/dsh-branch-studio/issues"
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.5",
+    "node": ">=20.11"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node test/host-smoke.mjs && node test/git-smoke.mjs && node test/queue-smoke.mjs && node test/maintenance-smoke.mjs && node test/security-smoke.mjs && node test/client-smoke.mjs",
+    "test:syntax": "node --check index.js && node --check client.js",
+    "verify:package": "node scripts/verify-package.mjs",
+    "release:check": "npm run test:syntax && npm test && npm run verify:package"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale",
+    "docs",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "RELEASE.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ]
+    }
+  }
+}

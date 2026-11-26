@@ -1,0 +1,4 @@
+# Branch studio bundle layer: one Host row plus its Client module.
+- insert:
+    - id: branch-studio
+      name: 'dsh-branch-studio'

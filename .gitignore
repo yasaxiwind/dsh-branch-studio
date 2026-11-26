@@ -1,0 +1,10 @@
+node_modules/
+dist-release/
+*.tgz
+scratch/
+browser-screenshots/
+gui-test/
+.dsh-branch-studio/
+.DS_Store
+Thumbs.db
+*.log
