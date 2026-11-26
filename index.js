@@ -20,6 +20,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -69,6 +70,21 @@ const STUDIO_DIR = '.dsh-branch-studio'
 function inside(root, target) {
   const rel = relative(resolve(root), resolve(target))
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
+}
+
+/**
+ * Resolve symlinks and Windows short (8.3) names so two spellings of the same
+ * directory produce the same path. Falls back to resolve() when the path is
+ * gone.
+ * @param {string} value - path to canonicalize.
+ * @returns {string} canonical path.
+ */
+function canonicalPath(value) {
+  try {
+    return realpathSync.native(value)
+  } catch {
+    return resolve(value)
+  }
 }
 
 /**
@@ -803,7 +819,7 @@ export function apply(ctx, config) {
         }
         if (copied > 0 && !warning) warning = `${copied} untracked file(s) copied into the branch`
       }
-      const childCwd = join(target, relative(group.repo, group.cwd))
+      const childCwd = join(target, relative(canonicalPath(group.repo), canonicalPath(group.cwd)))
       branch.worktreePath = target
       const linked = linkSharedDeps(group.cwd, target)
       if (linked.length > 0) warning = [warning, `linked ${linked.join(', ')} for verification`].filter(Boolean).join('; ')
