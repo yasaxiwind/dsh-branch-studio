@@ -57,9 +57,8 @@ window.__ModuleLoader__.load({
       title: '标题',
       running: '运行中',
       queued: '等待名额',
-      cancelled: '已取消',
       cancel: '取消',
-      confirmCancel: '取消这条分支？已产生的隔离改动会保留到清理。',
+      cancelled: '已取消',
       preparing: '准备中',
       completed: '完成',
       error: '失败',
@@ -144,9 +143,8 @@ window.__ModuleLoader__.load({
       title: 'Title',
       running: 'Running',
       queued: 'Queued',
-      cancelled: 'Cancelled',
       cancel: 'Cancel',
-      confirmCancel: 'Cancel this branch? Its isolated changes stay until the group is archived.',
+      cancelled: 'Cancelled',
       preparing: 'Preparing',
       completed: 'Completed',
       error: 'Failed',
@@ -429,16 +427,18 @@ window.__ModuleLoader__.load({
      * @param {string} branchId - branch id.
      * @returns {Promise<void>}
      */
-    async function cancelBranch(branchId) {
-      if (!window.confirm(t('confirmCancel'))) return
+    async function cancelBranch(branchId, translate = key => key, sessionId = store.get().sessionId) {
+      store.set(current => ({ ...current, error: null, banner: { kind: 'warn', text: `${translate('cancel')}…` } }))
       try {
         await api('/api/branch-studio/cancel', {
           method: 'POST',
-          body: JSON.stringify({ sessionId: store.get().sessionId, branch: branchId }),
+          body: JSON.stringify({ sessionId, branch: branchId }),
         })
         await refresh()
+        store.set(current => ({ ...current, banner: { kind: 'ok', text: translate('cancelled') } }))
       } catch (error) {
-        store.set(current => ({ ...current, error: error.message }))
+        store.set(current => ({ ...current, error: error.message, banner: null }))
+        await refresh()
       }
     }
 
@@ -875,7 +875,7 @@ window.__ModuleLoader__.load({
         promote: branchId => { void promoteBranch(branchId) },
         diff: branch => { void showDiff(branch) },
         verify: branchId => { void reVerify(branchId) },
-        cancel: branchId => { void cancelBranch(branchId) },
+        cancel: branchId => { void cancelBranch(branchId, t, state.sessionId) },
         archive: groupId => { void archiveGroup(groupId, t('confirmArchive')) },
         select: groupId => setState(current => ({ ...current, selectedId: groupId, view: 'group', compare: false })),
         create: () => setState(current => ({ ...current, view: 'create', selectedId: null, compare: false })),

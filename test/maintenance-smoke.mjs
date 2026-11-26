@@ -4,7 +4,7 @@
  *
  *   node test/maintenance-smoke.mjs
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -144,6 +144,10 @@ const after = readState()
 assert(after.groups.length === 1, `state retained only the newest group (has ${after.groups.length})`)
 assert(after.groups[0].id === created.group.id, 'retained group is the new one')
 assert(!existsSync(join(studio, 'g_old')), 'pruned group workspace removed')
+
+// Archiving the last group removes the now-empty studio directory itself.
+await call('/api/branch-studio/archive', { sessionId: 'session-m', group: created.group.id })
+assert(!existsSync(studio), `empty .dsh-branch-studio root removed (left: ${existsSync(studio) ? readdirSync(studio).join(',') : '-'})`)
 
 for (const dispose of cleanups) {
   try { dispose() } catch { /* ignore */ }

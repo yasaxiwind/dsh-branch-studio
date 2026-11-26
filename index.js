@@ -22,6 +22,7 @@ import {
   readdirSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -84,6 +85,20 @@ function canonicalPath(value) {
     return realpathSync.native(value)
   } catch {
     return resolve(value)
+  }
+}
+
+/**
+ * Remove a directory only when it is empty. Used to drop the studio root after
+ * the last group leaves, without touching unrelated files.
+ * @param {string} dir - directory to remove.
+ * @returns {void}
+ */
+function removeIfEmpty(dir) {
+  try {
+    if (readdirSync(dir).length === 0) rmdirSync(dir)
+  } catch {
+    // missing, non-empty or locked: leave it
   }
 }
 
@@ -1497,6 +1512,8 @@ export function apply(ctx, config) {
     } catch {
       // ignore
     }
+    removeIfEmpty(join(group.cwd, STUDIO_DIR))
+    if (group.repo && group.repo !== group.cwd) removeIfEmpty(join(group.repo, STUDIO_DIR))
     state.groups = state.groups.filter(item => item.id !== group.id)
     if (group.mode === 'git') git(group.repo, ['worktree', 'prune'])
   }
@@ -1593,6 +1610,7 @@ export function apply(ctx, config) {
           }
         }
       }
+      removeIfEmpty(studio)
     }
     try {
       const dir = join(dshHome(), 'branch-studio', '.verify')
