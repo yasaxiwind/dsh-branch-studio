@@ -11,8 +11,10 @@ This repository is prepared for the `0.1.0` source release. **No npm, marketplac
 - [x] `npm run verify:package` passes and `npm pack --dry-run` contains only expected files
 - [x] GitHub Actions test workflow for Windows / Ubuntu / macOS
 - [x] First CI run green after the repository is pushed (run 45839849687, all three platforms)
-- [ ] Optional: tag `v0.1.0` and GitHub Release with the npm tarball
-- [ ] Optional: npm publish `dsh-branch-studio@0.1.0`
+- [x] Tag `v0.1.0` + GitHub Release with the npm tarball (`v0.1.0`, 2026-11-27)
+- [x] npm publish `dsh-branch-studio@0.1.0` (shasum `267b36267316be88ff0e7d6b5d95edea5d162e9c`)
+- [x] npm install smoke in a fresh directory (`dsh-branch-studio@0.1.0`, host `apply` loads, 17 files)
+- [ ] Clean DSH profile install: `dsh` CLI is not available in this environment; use a separate profile when a CLI is available
 - [ ] Optional: awesome-dsh-plugin entry (repository must be >1 day old)
 
 ## Install from source (before any npm release)

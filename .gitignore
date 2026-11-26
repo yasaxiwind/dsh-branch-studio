@@ -8,3 +8,4 @@ gui-test/
 .DS_Store
 Thumbs.db
 *.log
+.~lock.*#

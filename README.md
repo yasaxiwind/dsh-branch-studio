@@ -1,6 +1,7 @@
 # dsh-branch-studio
 
 [![test](https://github.com/yasaxiwind/dsh-branch-studio/actions/workflows/test.yml/badge.svg)](https://github.com/yasaxiwind/dsh-branch-studio/actions/workflows/test.yml)
+[![npm](https://img.shields.io/npm/v/dsh-branch-studio.svg)](https://www.npmjs.com/package/dsh-branch-studio)
 
 在 DeepSeek Harness 里做**并行分支探索**：从当前对话分叉出 2–4 条互相隔离的路线，各自用不同模型/提示去跑，最后对比回答、文件改动和验证结果，把胜出的那条**提升回真实工作区**；如果提升后验证失败，会自动回滚。
 
@@ -22,6 +23,14 @@
 | 非 git 工作区可用 | ❌ | ❌（依赖 worktree） | ✅ |
 
 ## 安装
+
+从 npm（推荐）：
+
+```sh
+dsh plugin add dsh-branch-studio@0.1.0
+```
+
+或 **Settings → Plugins → + Add plugin** 搜索 `dsh-branch-studio`。
 
 从本地目录安装（开发时）：
 
