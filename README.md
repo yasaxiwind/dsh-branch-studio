@@ -1,5 +1,7 @@
 # dsh-branch-studio
 
+[![test](https://github.com/yasaxiwind/dsh-branch-studio/actions/workflows/test.yml/badge.svg)](https://github.com/yasaxiwind/dsh-branch-studio/actions/workflows/test.yml)
+
 在 DeepSeek Harness 里做**并行分支探索**：从当前对话分叉出 2–4 条互相隔离的路线，各自用不同模型/提示去跑，最后对比回答、文件改动和验证结果，把胜出的那条**提升回真实工作区**；如果提升后验证失败，会自动回滚。
 
 > 定位一句话：**它是"未来分叉"，不是"过去回滚"。** 不截断历史、不删除任何东西；只是把接下来的几种可能同时跑一遍，再选一条落地。
@@ -32,11 +34,11 @@
 
 | 平台 | 状态 | 说明 |
 |---|---|---|
-| Windows 10/11 | ✅ | 真机 GUI 验收 + 本地测试；复制用 `robocopy`，依赖用 `mklink /J`，验证用 `cmd.exe` |
-| Linux | 🟡 CI | 同一套测试跑在 `ubuntu-latest`；复制用 `fs.cp`，依赖用 symlink，验证用 `sh -c`；发布前必须绿 |
-| macOS | 🟡 CI | 同一套测试跑在 `macos-latest`；实现同 Linux；发布前必须绿 |
+| Windows 10/11 | ✅ | 真机 GUI 验收 + 三平台 CI；复制用 `robocopy`，依赖用 `mklink /J`，验证用 `cmd.exe` |
+| Linux | ✅ | 同一套测试跑在 `ubuntu-latest`；复制用 `fs.cp`，依赖用 symlink，验证用 `sh -c` |
+| macOS | ✅ | 同一套测试跑在 `macos-latest`；实现同 Linux |
 
-`package.json` **不设置 `os` 字段**，三平台都可安装。Linux/macOS 已按 POSIX 实现，但首次发布前以 CI 全绿为准；遇到平台问题请开 issue。
+`package.json` **不设置 `os` 字段**，三平台都可安装。三平台 CI 已全绿（2026-11-26）；遇到平台问题请开 issue。
 
 **验证命令按平台写**：Windows 用 `findstr done note.txt`、`node verify.mjs`；Linux/macOS 用 `grep -q done note.txt`、`node verify.mjs`。验证命令是在分支工作区里跑的 shell 命令，不是自然语言。
 

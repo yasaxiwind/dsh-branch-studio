@@ -10,7 +10,7 @@ This repository is prepared for the `0.1.0` source release. **No npm, marketplac
 - [x] `npm test` (host / git / queue / maintenance / security / client) green on Windows
 - [x] `npm run verify:package` passes and `npm pack --dry-run` contains only expected files
 - [x] GitHub Actions test workflow for Windows / Ubuntu / macOS
-- [ ] First CI run green after the repository is pushed
+- [x] First CI run green after the repository is pushed (run 45839849687, all three platforms)
 - [ ] Optional: tag `v0.1.0` and GitHub Release with the npm tarball
 - [ ] Optional: npm publish `dsh-branch-studio@0.1.0`
 - [ ] Optional: awesome-dsh-plugin entry (repository must be >1 day old)
