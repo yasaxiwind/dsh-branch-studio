@@ -12,6 +12,7 @@ First public version.
 - **Promote with verification and rollback**: promotion writes into the real workspace only on explicit action; the group verification command runs again after applying and failed verifications restore the touched files from byte backups.
 - **Progress and limits**: copy preparation reports bytes/files and percentage; a non-git workspace over `copyWarnMB` requires explicit confirmation; `maxCopyMB` / `maxCopyFiles` are hard limits.
 - **Capacity-aware**: when the subagent tree is full (`maxActiveSubagents`), branches wait in `queued` instead of failing, then resume when a slot frees.
+- **Per-branch cancel**: a preparing, queued or running branch can be cancelled on its own without touching sibling branches.
 - **State hygiene**: archiving removes isolated workspaces; startup sweeps orphaned group/branch directories and stale base manifests; settled old groups are pruned by `keepGroups` / `keepDays`.
 - **Security boundaries**: branch tools are restricted to the top-level conversation, routes are scoped by `sessionId`, archive validates workspace paths, and `linkDeps: false` disables shared dependency links. See `docs/SECURITY.md`.
 

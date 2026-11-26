@@ -329,14 +329,28 @@ function measureTree(root, maxFiles = 200000) {
 }
 
 /**
+ * Abort one branch's work with a stable error name.
+ * @param {AbortSignal|null} signal - cancellation signal.
+ * @returns {void}
+ */
+function throwIfAborted(signal) {
+  if (!signal?.aborted) return
+  const error = new Error('branch cancelled')
+  error.name = 'AbortError'
+  throw error
+}
+
+/**
  * Copy a directory tree asynchronously: robocopy on Windows, fs.cp elsewhere.
  * Asynchronous so the host can report copy progress while a large workspace is
- * being duplicated.
+ * being duplicated, and cancellable between top-level entries.
  * @param {string} source - source root.
  * @param {string} target - target root (created).
+ * @param {AbortSignal|null} [signal] - cancellation.
  * @returns {Promise<void>} completion.
  */
-async function copyTree(source, target) {
+async function copyTree(source, target, signal = null) {
+  throwIfAborted(signal)
   mkdirSync(target, { recursive: true })
   if (process.platform === 'win32') {
     await new Promise((resolvePromise, rejectPromise) => {
@@ -351,6 +365,11 @@ async function copyTree(source, target) {
         '/MT:8',
       ], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
       let stderr = ''
+      const onAbort = () => {
+        child.kill()
+        rejectPromise(Object.assign(new Error('branch cancelled'), { name: 'AbortError' }))
+      }
+      if (signal) signal.addEventListener('abort', onAbort, { once: true })
       const timer = setTimeout(() => {
         child.kill()
         rejectPromise(new Error('copy timed out after 10 minutes'))
@@ -358,12 +377,15 @@ async function copyTree(source, target) {
       child.stderr.on('data', chunk => { stderr += chunk })
       child.on('error', error => {
         clearTimeout(timer)
+        if (signal) signal.removeEventListener('abort', onAbort)
         rejectPromise(error)
       })
       child.on('close', code => {
         clearTimeout(timer)
-        // Robocopy reports 0-7 for success and 8+ for a real failure.
-        if (code === null || code >= 8) {
+        if (signal) signal.removeEventListener('abort', onAbort)
+        if (signal?.aborted) {
+          rejectPromise(Object.assign(new Error('branch cancelled'), { name: 'AbortError' }))
+        } else if (code === null || code >= 8) {
           rejectPromise(new Error(`copy failed (robocopy exit ${code}): ${stderr.slice(-400)}`))
         } else {
           resolvePromise()
@@ -376,6 +398,7 @@ async function copyTree(source, target) {
   // source tree (the studio directory) and a single recursive copy of the root
   // into its own descendant is rejected.
   for (const entry of readdirSync(source, { withFileTypes: true })) {
+    throwIfAborted(signal)
     if (SKIP_DIRS.has(entry.name)) continue
     await cpAsync(join(source, entry.name), join(target, entry.name), {
       recursive: true,
@@ -384,6 +407,7 @@ async function copyTree(source, target) {
       filter: src => !relative(source, src).split(sep).some(part => SKIP_DIRS.has(part)),
     })
   }
+  throwIfAborted(signal)
 }
 
 /**
@@ -527,6 +551,8 @@ export function apply(ctx, config) {
   const state = loadState()
   /** @type {Map<string, {group:object, branch:object, activation:object, controller:AbortController}>} */
   const running = new Map()
+  /** @type {Map<string, AbortController>} per-branch cancellation for pre-start and live work. */
+  const controls = new Map()
 
   const log = line => {
     try {
@@ -765,7 +791,8 @@ export function apply(ctx, config) {
    * @param {object} branch - branch record.
    * @returns {{workspace:string, warning:string}} workspace facts.
    */
-  async function prepareWorkspace(group, branch) {
+  async function prepareWorkspace(group, branch, signal = null) {
+    throwIfAborted(signal)
     const root = join(group.cwd, STUDIO_DIR, group.id, branch.id)
     mkdirSync(root, { recursive: true })
     branch.progress = {
@@ -784,6 +811,7 @@ export function apply(ctx, config) {
       if (add.status !== 0) {
         throw new Error(`git worktree add failed: ${(add.stderr || add.stdout).trim().slice(-500)}`)
       }
+      throwIfAborted(signal)
       let warning = ''
       // Bring uncommitted tracked changes along so a branch starts exactly
       // where the user is, not at the last commit. Plugin metadata lives beside
@@ -832,6 +860,7 @@ export function apply(ctx, config) {
     // progress, because a large copy otherwise looks like a hung host.
     const totals = group.copySize ?? { bytes: 0, files: 0 }
     const poll = setInterval(() => {
+      if (signal?.aborted) return
       try {
         const measured = measureTree(root, Math.max(1000, (totals.files ?? 0) + 1000))
         branch.progress = { ...branch.progress, bytes: measured.bytes, files: measured.files }
@@ -841,10 +870,11 @@ export function apply(ctx, config) {
       }
     }, Math.max(500, Number(cfg.copyPollMs) || 1000))
     try {
-      await copyTree(group.cwd, root)
+      await copyTree(group.cwd, root, signal)
     } finally {
       clearInterval(poll)
     }
+    throwIfAborted(signal)
     const linked = linkSharedDeps(group.cwd, root)
     // Each branch keeps its own base manifest, captured right after the copy:
     // a group-wide manifest would race with edits made while later branches are
@@ -865,10 +895,10 @@ export function apply(ctx, config) {
    * @param {object} branch - branch record.
    * @returns {Promise<void>} settlement.
    */
-  async function startBranch(group, branch) {
+  async function startBranch(group, branch, controller) {
+    throwIfAborted(controller.signal)
     const parent = ctx.agents.get(group.sessionId)
     if (!parent) throw new Error('the source session is no longer live')
-    const controller = new AbortController()
     const budget = Number(branch.maxTokens) > 0 ? Number(branch.maxTokens) : 0
     branch.status = 'preparing'
     const spec = {
@@ -910,6 +940,7 @@ export function apply(ctx, config) {
         await new Promise(resolve => setTimeout(resolve, Math.max(200, Number(cfg.capacityRetryMs) || 3000)))
       }
     }
+    throwIfAborted(controller.signal)
     branch.status = 'running'
     branch.startedAt = Date.now()
     branch.error = ''
@@ -951,6 +982,19 @@ export function apply(ctx, config) {
   async function finalizeBranch(group, branch, result, failure) {
     const entry = running.get(branch.id)
     if (entry?.tokenTimer) clearInterval(entry.tokenTimer)
+    if (branch.cancelRequested || branch.status === 'cancelled') {
+      branch.status = 'cancelled'
+      branch.error = 'cancelled by user'
+      branch.endedAt = Date.now()
+      branch.durationMs = branch.endedAt - (branch.startedAt ?? branch.endedAt)
+      branch.progress = null
+      branch.stopReason = result?.stopReason ?? branch.stopReason ?? 'aborted'
+      if (result) branch.answer = textOf(result?.output).slice(0, cfg.answerChars)
+      running.delete(branch.id)
+      controls.delete(branch.id)
+      saveState(state)
+      return
+    }
     try {
       if (branch.budgetExceeded) {
         branch.status = 'error'
@@ -989,6 +1033,7 @@ export function apply(ctx, config) {
       log(`branch ${branch.id} settled as ${branch.status}`)
     } finally {
       running.delete(branch.id)
+      controls.delete(branch.id)
       saveState(state)
     }
   }
@@ -1368,12 +1413,54 @@ export function apply(ctx, config) {
   }
 
   /**
+   * Cancel one branch without touching the others.
+   * @param {object} group - owning group.
+   * @param {object} branch - branch record.
+   * @returns {void}
+   */
+  function cancelBranch(group, branch) {
+    if (branch.status === 'cancelled') return
+    if (branch.status !== 'preparing' && branch.status !== 'queued' && branch.status !== 'running') {
+      throw new Error(`only a preparing, queued or running branch can be cancelled (this one is ${branch.status})`)
+    }
+    branch.cancelRequested = true
+    branch.status = 'cancelled'
+    branch.error = 'cancelled by user'
+    branch.progress = null
+    branch.endedAt = Date.now()
+    const controller = controls.get(branch.id)
+    try {
+      controller?.abort()
+    } catch {
+      // ignore
+    }
+    const entry = running.get(branch.id)
+    if (entry?.tokenTimer) clearInterval(entry.tokenTimer)
+    if (branch.childId) {
+      try {
+        ctx.subagents.interrupt(branch.childId, { kind: 'user' })
+      } catch {
+        // the child may already be gone
+      }
+    }
+    log(`branch ${branch.id} cancelled in group ${group.id}`)
+    saveState(state)
+  }
+
+  /**
    * Remove one group's workspaces and record, without persisting.
    * @param {object} group - group to remove.
    * @returns {void}
    */
   function discardGroup(group) {
     for (const branch of group.branches ?? []) {
+      const controller = controls.get(branch.id)
+      try {
+        controller?.abort()
+      } catch {
+        // ignore
+      }
+      controls.delete(branch.id)
       const entry = running.get(branch.id)
       if (entry) {
         if (entry.tokenTimer) clearInterval(entry.tokenTimer)
@@ -1599,6 +1686,7 @@ export function apply(ctx, config) {
         status: 'preparing',
         workspace: null,
         progress: null,
+        cancelRequested: false,
         childId: null,
         startedAt: null,
         endedAt: null,
@@ -1615,6 +1703,7 @@ export function apply(ctx, config) {
         verify: null,
         warning: '',
       })
+      controls.set(group.branches[group.branches.length - 1].id, new AbortController())
     }
     state.groups.push(group)
     saveState(state)
@@ -1624,18 +1713,29 @@ export function apply(ctx, config) {
     // workspace must not block the HTTP request or the tool call.
     void (async () => {
       for (const branch of group.branches) {
+        const controller = controls.get(branch.id)
         try {
-          const prepared = await prepareWorkspace(group, branch)
+          throwIfAborted(controller.signal)
+          const prepared = await prepareWorkspace(group, branch, controller.signal)
           branch.workspace = prepared.workspace
           branch.warning = prepared.warning
           branch.prompt = composePrompt(group, branch)
           saveState(state)
-          await startBranch(group, branch)
+          throwIfAborted(controller.signal)
+          await startBranch(group, branch, controller)
         } catch (error) {
-          branch.status = 'error'
-          branch.progress = null
-          branch.error = error instanceof Error ? error.message : String(error)
-          branch.endedAt = Date.now()
+          if (controller.signal.aborted || branch.cancelRequested) {
+            branch.status = 'cancelled'
+            branch.error = 'cancelled by user'
+            branch.progress = null
+            branch.endedAt = branch.endedAt ?? Date.now()
+          } else {
+            branch.status = 'error'
+            branch.progress = null
+            branch.error = error instanceof Error ? error.message : String(error)
+            branch.endedAt = Date.now()
+          }
+          controls.delete(branch.id)
           saveState(state)
         }
       }
@@ -1776,6 +1876,25 @@ export function apply(ctx, config) {
         result.applied.length ? `applied:\n${result.applied.map(file => `- ${file.status}: ${file.path}`).join('\n')}` : '',
         result.conflicts.length ? `conflicts:\n${result.conflicts.map(file => `- ${file.path}: ${file.reason}`).join('\n')}` : '',
       ].filter(Boolean).join('\n')
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'branch_cancel',
+    description: 'Cancel one preparing, queued or running branch without touching the others. Its isolated workspace stays until the group is archived.',
+    parameters: {
+      type: 'object',
+      properties: { branch: { type: 'string', description: 'Branch id from branch_list or branch_compare' } },
+      required: ['branch'],
+      additionalProperties: false,
+    },
+    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+    async execute(args, exec) {
+      const sessionId = assertTopLevel(exec)
+      const found = branchOf(String(args.branch ?? ''), sessionId)
+      if (!found) throw new Error('no such branch in this session')
+      cancelBranch(found.group, found.branch)
+      return `Cancelled branch ${found.branch.label} (${found.branch.id}).`
     },
   }))
 
@@ -1923,6 +2042,18 @@ export function apply(ctx, config) {
           text = ''
         }
         return { text }
+      }),
+    },
+    {
+      path: '/api/branch-studio/cancel',
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: route(async request => {
+        const body = await request.json()
+        const found = branchOf(String(body.branch ?? ''), String(body.sessionId ?? ''))
+        if (!found) throw new Error('no such branch in this session')
+        cancelBranch(found.group, found.branch)
+        return { cancelled: found.branch.id }
       }),
     },
     {

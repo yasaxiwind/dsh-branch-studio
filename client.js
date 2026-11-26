@@ -57,6 +57,9 @@ window.__ModuleLoader__.load({
       title: '标题',
       running: '运行中',
       queued: '等待名额',
+      cancelled: '已取消',
+      cancel: '取消',
+      confirmCancel: '取消这条分支？已产生的隔离改动会保留到清理。',
       preparing: '准备中',
       completed: '完成',
       error: '失败',
@@ -141,6 +144,9 @@ window.__ModuleLoader__.load({
       title: 'Title',
       running: 'Running',
       queued: 'Queued',
+      cancelled: 'Cancelled',
+      cancel: 'Cancel',
+      confirmCancel: 'Cancel this branch? Its isolated changes stay until the group is archived.',
       preparing: 'Preparing',
       completed: 'Completed',
       error: 'Failed',
@@ -419,6 +425,24 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Cancel one running/preparing branch.
+     * @param {string} branchId - branch id.
+     * @returns {Promise<void>}
+     */
+    async function cancelBranch(branchId) {
+      if (!window.confirm(t('confirmCancel'))) return
+      try {
+        await api('/api/branch-studio/cancel', {
+          method: 'POST',
+          body: JSON.stringify({ sessionId: store.get().sessionId, branch: branchId }),
+        })
+        await refresh()
+      } catch (error) {
+        store.set(current => ({ ...current, error: error.message }))
+      }
+    }
+
+    /**
      * Re-run the group verification for one branch.
      * @param {string} branchId - branch id.
      * @returns {Promise<void>}
@@ -495,6 +519,7 @@ window.__ModuleLoader__.load({
       const map = {
         preparing: ['bs-pill-preparing', t('preparing')],
         queued: ['bs-pill-queued', t('queued')],
+        cancelled: ['bs-pill-cancelled', t('cancelled')],
         running: ['bs-pill-running', t('running')],
         completed: ['bs-pill-completed', t('completed')],
         error: ['bs-pill-error', t('error')],
@@ -725,7 +750,7 @@ window.__ModuleLoader__.load({
      * @param {object} props - branch, handlers, translator, busy.
      * @returns {object} element.
      */
-    function BranchCard({ branch, onPromote, onDiff, onVerify, onCompare, t, busy }) {
+    function BranchCard({ branch, onPromote, onDiff, onVerify, onCompare, onCancel, t, busy }) {
       const [expanded, setExpanded] = useState(false)
       const running = branch.status === 'preparing' || branch.status === 'queued' || branch.status === 'running'
       return h('article', { className: 'bs-card' },
@@ -749,6 +774,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', className: 'bs-link', onClick: () => onDiff(branch) }, t('diff')),
           onCompare ? h('button', { type: 'button', className: 'bs-link', onClick: onCompare }, t('compare')) : null,
           branch.verify && !running ? h('button', { type: 'button', className: 'bs-link', onClick: () => onVerify(branch.id) }, 're-verify') : null,
+          running && onCancel ? h('button', { type: 'button', className: 'bs-link bs-danger', onClick: () => onCancel(branch.id) }, t('cancel')) : null,
           h('button', {
             type: 'button',
             className: 'bs-primary bs-promote',
@@ -795,6 +821,7 @@ window.__ModuleLoader__.load({
             onPromote: actions.promote,
             onDiff: actions.diff,
             onVerify: actions.verify,
+            onCancel: actions.cancel,
             onCompare: () => actions.setCompare(true),
           }))))
     }
@@ -848,6 +875,7 @@ window.__ModuleLoader__.load({
         promote: branchId => { void promoteBranch(branchId) },
         diff: branch => { void showDiff(branch) },
         verify: branchId => { void reVerify(branchId) },
+        cancel: branchId => { void cancelBranch(branchId) },
         archive: groupId => { void archiveGroup(groupId, t('confirmArchive')) },
         select: groupId => setState(current => ({ ...current, selectedId: groupId, view: 'group', compare: false })),
         create: () => setState(current => ({ ...current, view: 'create', selectedId: null, compare: false })),
@@ -938,7 +966,7 @@ window.__ModuleLoader__.load({
       '.bs-groupitem-meta{display:flex;gap:8px;color:var(--dsw-alias-label-secondary,#6b7280);font-size:11px;margin-top:3px}',
       '.bs-groupitem-dots{display:flex;gap:4px;margin-top:6px}',
       '.bs-dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--dsw-alias-label-tertiary,#cbd5e1)}',
-      '.bs-dot-running{background:#3b82f6}.bs-dot-queued{background:#8b5cf6}.bs-dot-completed{background:#22c55e}.bs-dot-error{background:#ef4444}.bs-dot-preparing{background:#f59e0b}.bs-dot-interrupted{background:#94a3b8}',
+      '.bs-dot-running{background:#3b82f6}.bs-dot-queued{background:#8b5cf6}.bs-dot-cancelled{background:#94a3b8}.bs-dot-completed{background:#22c55e}.bs-dot-error{background:#ef4444}.bs-dot-preparing{background:#f59e0b}.bs-dot-interrupted{background:#94a3b8}',
       '.bs-sidefoot{margin-top:auto;padding-top:8px}',
       '.bs-main{flex:1;min-width:0;overflow:auto;padding:16px 18px}',
       '.bs-sectionhead{display:flex;align-items:baseline;gap:10px;margin:2px 0 10px}',
@@ -993,6 +1021,7 @@ window.__ModuleLoader__.load({
       '.bs-pill-preparing{background:#fef3c7;color:#92400e}.bs-pill-queued{background:#ede9fe;color:#5b21b6}.bs-pill-running{background:#dbeafe;color:#1d4ed8}',
       '.bs-pill-completed{background:#dcfce7;color:#166534}.bs-pill-error{background:#fee2e2;color:#991b1b}',
       '.bs-pill-interrupted{background:#e5e7eb;color:#475569}',
+      '.bs-pill-cancelled{background:#e5e7eb;color:#475569}',
       '.bs-answer{white-space:pre-wrap;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#1f2937);cursor:pointer;border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-2,rgba(0,0,0,.02))}',
       '.bs-answer-clamp{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}',
       '.bs-answer-small{-webkit-line-clamp:8;font-size:11.5px}',
@@ -1027,6 +1056,7 @@ window.__ModuleLoader__.load({
       'body[data-ds-dark-theme] .bs-pill-completed{background:rgba(34,197,94,.16);color:#86efac}',
       'body[data-ds-dark-theme] .bs-pill-error{background:rgba(239,68,68,.18);color:#fca5a5}',
       'body[data-ds-dark-theme] .bs-pill-interrupted{background:rgba(148,163,184,.18);color:#cbd5e1}',
+      'body[data-ds-dark-theme] .bs-pill-cancelled{background:rgba(148,163,184,.18);color:#cbd5e1}',
       'body[data-ds-dark-theme] .bs-banner-ok{background:rgba(34,197,94,.14);color:#86efac}',
       'body[data-ds-dark-theme] .bs-banner-warn{background:rgba(245,158,11,.16);color:#fbbf24}',
       'body[data-ds-dark-theme] .bs-banner-bad{background:rgba(239,68,68,.16);color:#fca5a5}',

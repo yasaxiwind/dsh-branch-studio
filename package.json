@@ -31,7 +31,7 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node test/host-smoke.mjs && node test/git-smoke.mjs && node test/queue-smoke.mjs && node test/maintenance-smoke.mjs && node test/security-smoke.mjs && node test/client-smoke.mjs",
+    "test": "node test/host-smoke.mjs && node test/git-smoke.mjs && node test/queue-smoke.mjs && node test/cancel-smoke.mjs && node test/maintenance-smoke.mjs && node test/security-smoke.mjs && node test/client-smoke.mjs",
     "test:syntax": "node --check index.js && node --check client.js",
     "verify:package": "node scripts/verify-package.mjs",
     "release:check": "npm run test:syntax && npm test && npm run verify:package"

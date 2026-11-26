@@ -69,6 +69,7 @@
 | `branch_list` | 列出本会话的分支组与状态 |
 | `branch_compare` | 汇总一组分支的回答/文件/验证/tokens |
 | `branch_promote` | 提升某个完成的分支（`applyDeletions`、`verifyAfter`） |
+| `branch_cancel` | 取消某条准备中/排队中/运行中的分支，不影响其它分支 |
 | `branch_archive` | 删除一组分支及其隔离目录 |
 
 典型用法：
@@ -149,6 +150,7 @@ Client 半部：`client.js`（输入框按钮 + 浮层面板，`window.__ModuleL
 - 竞品与差异：[docs/COMPETITORS.md](docs/COMPETITORS.md)
 - 验证记录与未验证项：[docs/VERIFICATION.md](docs/VERIFICATION.md)
 - 真人 GUI 验收手册：[docs/GUI-TEST.md](docs/GUI-TEST.md)
+- 10 分钟 P0 复查：[docs/GUI-RECHECK.md](docs/GUI-RECHECK.md)
 - 安全边界与信任模型：[docs/SECURITY.md](docs/SECURITY.md)
 
 ## License
