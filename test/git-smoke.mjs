@@ -91,7 +91,7 @@ for (let i = 0; i < 100; i += 1) {
   if (group && group.branches.every(branch => branch.status === 'completed' || branch.status === 'error')) break
   await new Promise(resolve => setTimeout(resolve, 100))
 }
-assert(group?.branches?.[0]?.status === 'completed', 'branch completed')
+assert(group?.branches?.[0]?.status === 'completed', `branch completed (status=${group?.branches?.[0]?.status}, error=${group?.branches?.[0]?.error})`)
 assert(!JSON.stringify(group.branches[0].files).includes('changes.patch'), 'no plugin metadata in the branch diff')
 
 const promoted = await call('/api/branch-studio/promote', { sessionId: 'session-git', branch: group.branches[0].id, verifyAfter: true })
