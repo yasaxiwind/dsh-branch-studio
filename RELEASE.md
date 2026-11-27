@@ -1,5 +1,11 @@
 # Release history
 
+## 0.1.1 (2026-11-27)
+
+- npm: [`dsh-branch-studio@0.1.1`](https://www.npmjs.com/package/dsh-branch-studio/v/0.1.1)
+- Documentation-only release: internal QA notes removed from the package; runtime unchanged.
+- GitHub Release: [v0.1.1](https://github.com/yasaxiwind/dsh-branch-studio/releases/tag/v0.1.1)
+
 ## 0.1.0 (2026-11-27)
 
 - npm: [`dsh-branch-studio@0.1.0`](https://www.npmjs.com/package/dsh-branch-studio/v/0.1.0)

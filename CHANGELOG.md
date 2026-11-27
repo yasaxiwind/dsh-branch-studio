@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 (2026-11-27)
+
+Documentation-only release. No runtime behavior changed.
+
+- Removed internal QA notes (`COMPETITORS`, `GUI-TEST`, `GUI-RECHECK`, `VERIFICATION`) from the repository and the npm package.
+- README now links only to the public security model.
+- `RELEASE.md` is no longer shipped in the npm package.
+- `verify:package` now rejects the internal documents if they reappear.
+
 ## 0.1.0 (2026-11-26)
 
 First public version.
