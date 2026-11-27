@@ -27,7 +27,7 @@
 从 npm（推荐）：
 
 ```sh
-dsh plugin add dsh-branch-studio@0.1.0
+dsh plugin add dsh-branch-studio
 ```
 
 或 **Settings → Plugins → + Add plugin** 搜索 `dsh-branch-studio`。

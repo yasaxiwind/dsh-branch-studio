@@ -1,5 +1,11 @@
 # Release history
 
+## 0.1.2 (2026-11-27)
+
+- npm: [`dsh-branch-studio@0.1.2`](https://www.npmjs.com/package/dsh-branch-studio/v/0.1.2)
+- Documentation-only release: install command no longer pins an old version.
+- GitHub Release: [v0.1.2](https://github.com/yasaxiwind/dsh-branch-studio/releases/tag/v0.1.2)
+
 ## 0.1.1 (2026-11-27)
 
 - npm: [`dsh-branch-studio@0.1.1`](https://www.npmjs.com/package/dsh-branch-studio/v/0.1.1)
@@ -17,7 +23,7 @@
 ## Install
 
 ```sh
-dsh plugin add dsh-branch-studio@0.1.0
+dsh plugin add dsh-branch-studio
 ```
 
 From source:

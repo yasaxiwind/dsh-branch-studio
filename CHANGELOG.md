@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 (2026-11-27)
+
+Documentation-only release. No runtime behavior changed.
+
+- README install command no longer pins an old version; it now follows `latest`.
+- `RELEASE.md` install example updated the same way.
+
 ## 0.1.1 (2026-11-27)
 
 Documentation-only release. No runtime behavior changed.

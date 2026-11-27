@@ -1,6 +1,6 @@
 {
   "name": "dsh-branch-studio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Parallel branch studio for DeepSeek Harness: fan out isolated branches from the current session, run each with its own model and prompt, compare answers/files/verification, and promote the winner back into the workspace.",
   "keywords": [
     "dsh",
