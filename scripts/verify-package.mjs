@@ -33,9 +33,7 @@ const required = [
   'LICENSE',
   'CHANGELOG.md',
   'SECURITY.md',
-  'RELEASE.md',
   'docs/SECURITY.md',
-  'docs/VERIFICATION.md',
 ]
 for (const file of required) requireFile(file)
 
@@ -68,11 +66,14 @@ const entry = Array.isArray(manifest) ? manifest[0] : manifest
 if (entry.version !== pkg.version) fail(`npm pack version ${entry.version} != package.json ${pkg.version}`)
 const files = (entry.files ?? []).map(file => file.path)
 const has = path => files.some(file => file === path || file.startsWith(`${path}/`))
-for (const path of ['index.js', 'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'SECURITY.md', 'RELEASE.md', 'locale', 'docs']) {
+for (const path of ['index.js', 'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'SECURITY.md', 'locale', 'docs']) {
   if (!has(path)) fail(`npm pack is missing ${path}`)
 }
 for (const path of ['test/', 'scripts/', '.github/', 'scratch/', 'browser-screenshots/']) {
   if (files.some(file => file.startsWith(path))) fail(`npm pack must not include ${path}`)
+}
+for (const path of ['docs/COMPETITORS.md', 'docs/VERIFICATION.md', 'docs/GUI-TEST.md', 'docs/GUI-RECHECK.md']) {
+  if (files.includes(path)) fail(`npm pack must not include internal doc ${path}`)
 }
 if (files.some(file => file.endsWith('.tgz'))) fail('npm pack must not include a tarball')
 

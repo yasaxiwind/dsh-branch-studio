@@ -43,7 +43,7 @@ dsh plugin add dsh-branch-studio@0.1.0
 
 | 平台 | 状态 | 说明 |
 |---|---|---|
-| Windows 10/11 | ✅ | 真机 GUI 验收 + 三平台 CI；复制用 `robocopy`，依赖用 `mklink /J`，验证用 `cmd.exe` |
+| Windows 10/11 | ✅ | 手工验收 + 三平台 CI；复制用 `robocopy`，依赖用 `mklink /J`，验证用 `cmd.exe` |
 | Linux | ✅ | 同一套测试跑在 `ubuntu-latest`；复制用 `fs.cp`，依赖用 symlink，验证用 `sh -c` |
 | macOS | ✅ | 同一套测试跑在 `macos-latest`；实现同 Linux |
 
@@ -156,10 +156,6 @@ Host 半部：`index.js`（工具 + `/api/branch-studio/*` 路由 + 隔离/提�
 Client 半部：`client.js`（输入框按钮 + 浮层面板，`window.__ModuleLoader__` 格式）。
 三平台 CI：`.github/workflows/test.yml`（Windows / Ubuntu / macOS，Node 24）。
 
-- 竞品与差异：[docs/COMPETITORS.md](docs/COMPETITORS.md)
-- 验证记录与未验证项：[docs/VERIFICATION.md](docs/VERIFICATION.md)
-- 真人 GUI 验收手册：[docs/GUI-TEST.md](docs/GUI-TEST.md)
-- 10 分钟 P0 复查：[docs/GUI-RECHECK.md](docs/GUI-RECHECK.md)
 - 安全边界与信任模型：[docs/SECURITY.md](docs/SECURITY.md)
 
 ## License
