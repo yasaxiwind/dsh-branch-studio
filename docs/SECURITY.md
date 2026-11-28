@@ -58,8 +58,10 @@
 
 ## 4. 授权模型
 
-- **工具**：`branch_start` / `branch_list` / `branch_compare` / `branch_promote` / `branch_archive` 只对**顶层会话**开放；分支子代理调用会被拒绝（`branch tools are only available to the top-level conversation`），避免分支自己把自己提升。
-- **工具参数**：promote/archive 只能操作**本会话**创建的组；跨会话 id 会被拒绝。
+- **工具**：`branch_start` / `branch_list` / `branch_compare` / `branch_promote` / `branch_cancel` / `branch_archive` 只对**顶层会话**开放；分支子代理调用会被拒绝（`branch tools are only available to the top-level conversation`），避免分支自己把自己提升。
+- **设置文件**：设置页写入 `~/.dsh/branch-studio/settings.json`（不含密钥）；profile 的插件配置优先，设置页中显示为锁定。
+- **运行中活动**：面板只在本地显示子代理最近一次工具名/参数摘要；这是调试信息，不是可信指令。
+- **工具参数**：promote/archive/cancel 只能操作**本会话**创建的组；跨会话 id 会被拒绝。
 - **HTTP 路由**：promote / verify / diff / archive 都要求 `sessionId` 且与组归属匹配；create 使用 live session。路由依赖 DSH 的同源认证，**不是多租户隔离**。
 - **state 文件**：`~/.dsh/branch-studio/state.json` 被视为可信本地文件；包含回答、diff、验证输出、工作区路径。请保护你的 profile 目录权限。
 

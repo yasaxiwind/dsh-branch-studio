@@ -70,6 +70,23 @@ window.__ModuleLoader__.load({
       verifyFail: '验证失败',
       verifyNone: '未验证',
       verifyAfter: '提升后在真实工作区复验（失败自动回滚）',
+      settings: '设置',
+      settingsHint: '只影响之后的探索与提升；运行中的分支保持启动时的值。',
+      copyWarnMB: '大目录提示阈值（MB）',
+      capacityWaitMs: '等待子代理名额的上限（毫秒）',
+      linkDeps: '共享依赖目录（node_modules / .venv）',
+      verifyAfterDefault: '默认在提升后复验',
+      locked: '由 profile 配置覆盖',
+      saveSettings: '保存设置',
+      settingsSaved: '设置已保存',
+      activity: '最近活动',
+      done: '完成',
+      writingAnswer: '生成回答',
+      copyAnswer: '复制回答',
+      copied: '已复制',
+      copyDiff: '复制 diff',
+      expand: '展开',
+      collapse: '收起',
       answer: '回答',
       noAnswer: '（还没有回答）',
       diff: '改动',
@@ -156,6 +173,23 @@ window.__ModuleLoader__.load({
       verifyFail: 'verify failed',
       verifyNone: 'not verified',
       verifyAfter: 'Re-verify in the real workspace after promotion (roll back on failure)',
+      settings: 'Settings',
+      settingsHint: 'Applies to new explorations and promotions; running branches keep their current values.',
+      copyWarnMB: 'Large-directory warning (MB)',
+      capacityWaitMs: 'Maximum wait for a subagent slot (ms)',
+      linkDeps: 'Share dependency directories (node_modules / .venv)',
+      verifyAfterDefault: 'Re-verify after promotion by default',
+      locked: 'Overridden by the profile config',
+      saveSettings: 'Save settings',
+      settingsSaved: 'Settings saved',
+      activity: 'Latest activity',
+      done: 'done',
+      writingAnswer: 'writing answer',
+      copyAnswer: 'Copy answer',
+      copied: 'Copied',
+      copyDiff: 'Copy diff',
+      expand: 'Expand',
+      collapse: 'Collapse',
       answer: 'Answer',
       noAnswer: '(no answer yet)',
       diff: 'Changes',
@@ -280,6 +314,21 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Copy text through the browser clipboard.
+     * @param {string} text - text to copy.
+     * @returns {Promise<boolean>} whether it succeeded.
+     */
+    async function copyText(text) {
+      if (!text) return false
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    /**
      * Refresh groups and metadata for the open session.
      * @returns {Promise<void>}
      */
@@ -294,13 +343,15 @@ window.__ModuleLoader__.load({
         store.set(current => {
           const groups = state.groups ?? []
           const stillThere = groups.some(group => group.id === selectedId)
+          const firstMeta = !current.meta
           return {
             ...current,
             groups,
             meta,
             limits: state.limits ?? current.limits,
             selectedId: stillThere ? selectedId : null,
-            view: stillThere || current.view === 'create' ? current.view : 'create',
+            view: stillThere || current.view === 'create' || current.view === 'settings' ? current.view : 'create',
+            verifyAfter: firstMeta && meta.settings ? meta.settings.verifyAfter !== false : current.verifyAfter,
             loading: false,
           }
         })
@@ -419,6 +470,31 @@ window.__ModuleLoader__.load({
         store.set(current => ({ ...current, diff: { ...current.diff, loading: false, text: body.text || '' } }))
       } catch (error) {
         store.set(current => ({ ...current, diff: { ...current.diff, loading: false, text: `${zh.errorPrefix}: ${error.message}` } }))
+      }
+    }
+
+    /**
+     * Persist the panel's editable settings.
+     * @param {object} draft - field values.
+     * @param {function(string):string} [translate] - locale lookup.
+     * @returns {Promise<void>}
+     */
+    async function saveSettings(draft, translate = key => key) {
+      store.set(current => ({ ...current, error: null, banner: { kind: 'warn', text: `${translate('saveSettings')}…` } }))
+      try {
+        const body = await api('/api/branch-studio/settings', {
+          method: 'POST',
+          body: JSON.stringify({ sessionId: store.get().sessionId, settings: draft }),
+        })
+        await refresh()
+        store.set(current => ({
+          ...current,
+          meta: current.meta ? { ...current.meta, settings: body.settings } : current.meta,
+          verifyAfter: body.settings?.verifyAfter !== false,
+          banner: { kind: 'ok', text: translate('settingsSaved') },
+        }))
+      } catch (error) {
+        store.set(current => ({ ...current, error: error.message, banner: null }))
       }
     }
 
@@ -693,6 +769,31 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * One compare-column answer with expand and copy controls.
+     * @param {object} props - branch and translator.
+     * @returns {object} element.
+     */
+    function CompareAnswer({ branch, t }) {
+      const [expanded, setExpanded] = useState(false)
+      const [copied, setCopied] = useState(false)
+      const text = branch.answer || (branch.activity ? activityText(branch.activity, t) : t('noAnswer'))
+      const copy = async () => {
+        if (await copyText(branch.answer)) {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        }
+      }
+      return h('div', { className: 'bs-compare-answer' },
+        h('div', { className: 'bs-compare-answerhead' },
+          h('strong', null, branch.label),
+          h(StatusPill, { status: branch.status, t }),
+          h('button', { type: 'button', className: 'bs-link bs-answerbtn', onClick: () => setExpanded(value => !value) },
+            expanded ? t('collapse') : t('expand')),
+          branch.answer ? h('button', { type: 'button', className: 'bs-link bs-answerbtn', onClick: () => { void copy() } }, copied ? t('copied') : t('copyAnswer')) : null),
+        h('div', { className: `bs-answer ${expanded ? '' : 'bs-answer-small'}` }, text))
+    }
+
+    /**
      * Compare table across branches.
      * @param {object} props - branches and translator.
      * @returns {object} element.
@@ -722,9 +823,20 @@ window.__ModuleLoader__.load({
               h('th', null, key === 'verify' ? t('verify') : t(key)),
               cols.map(branch => h('td', { key: branch.id }, cell(branch, key))))))),
         h('div', { className: 'bs-compare-answers' },
-          cols.map(branch => h('div', { key: branch.id, className: 'bs-compare-answer' },
-            h('div', { className: 'bs-compare-answerhead' }, h('strong', null, branch.label), h(StatusPill, { status: branch.status, t })),
-            h('div', { className: 'bs-answer bs-answer-small' }, branch.answer || t('noAnswer'))))))
+          cols.map(branch => h(CompareAnswer, { key: branch.id, branch, t }))))
+    }
+
+    /**
+     * Render one branch's latest tool/answer activity.
+     * @param {object} activity - host activity.
+     * @param {function(string):string} t - translator.
+     * @returns {string} short text.
+     */
+    function activityText(activity, t) {
+      if (!activity) return ''
+      if (activity.kind === 'tool') return `${activity.name}${activity.detail ? ` · ${activity.detail}` : ''}`
+      if (activity.kind === 'result') return `${activity.name} · ${t('done')}`
+      return t('writingAnswer')
     }
 
     /**
@@ -752,7 +864,14 @@ window.__ModuleLoader__.load({
      */
     function BranchCard({ branch, onPromote, onDiff, onVerify, onCompare, onCancel, t, busy }) {
       const [expanded, setExpanded] = useState(false)
+      const [copied, setCopied] = useState(false)
       const running = branch.status === 'preparing' || branch.status === 'queued' || branch.status === 'running'
+      const copyAnswer = async () => {
+        if (await copyText(branch.answer)) {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        }
+      }
       return h('article', { className: 'bs-card' },
         h('header', { className: 'bs-cardhead' },
           h('div', { className: 'bs-cardtitle' },
@@ -767,11 +886,15 @@ window.__ModuleLoader__.load({
             branch.verify ? h('span', { className: branch.verify.ok ? 'bs-ok' : 'bs-bad' }, branch.verify.ok ? t('verifyOk') : t('verifyFail')) : null)),
         branch.warning ? h('div', { className: 'bs-hint bs-warning' }, branch.warning) : null,
         branch.progress && running ? h(ProgressLine, { progress: branch.progress, t }) : null,
+        running && branch.activity ? h('div', { className: 'bs-activity' },
+          h('span', { className: 'bs-activitydot' }),
+          h('span', null, `${t('activity')}: ${activityText(branch.activity, t)}`)) : null,
         branch.error ? h('div', { className: 'bs-errorline' }, branch.error) : null,
         h('div', { className: `bs-answer ${expanded ? '' : 'bs-answer-clamp'}`, onClick: () => setExpanded(value => !value) },
           branch.answer || (running ? '…' : t('noAnswer'))),
         h('footer', { className: 'bs-cardactions' },
           h('button', { type: 'button', className: 'bs-link', onClick: () => onDiff(branch) }, t('diff')),
+          branch.answer ? h('button', { type: 'button', className: 'bs-link', onClick: () => { void copyAnswer() } }, copied ? t('copied') : t('copyAnswer')) : null,
           onCompare ? h('button', { type: 'button', className: 'bs-link', onClick: onCompare }, t('compare')) : null,
           branch.verify && !running ? h('button', { type: 'button', className: 'bs-link', onClick: () => onVerify(branch.id) }, 're-verify') : null,
           running && onCancel ? h('button', { type: 'button', className: 'bs-link bs-danger', onClick: () => onCancel(branch.id) }, t('cancel')) : null,
@@ -827,6 +950,68 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Editable plugin settings.
+     * @param {object} props - state, translator and save callback.
+     * @returns {object} element.
+     */
+    function SettingsView({ state, t, onSave }) {
+      const settings = state.meta?.settings ?? {}
+      const [draft, setDraft] = useState({
+        copyWarnMB: Number(settings.copyWarnMB ?? 300),
+        capacityWaitMs: Number(settings.capacityWaitMs ?? 300000),
+        linkDeps: settings.linkDeps !== false,
+        verifyAfter: settings.verifyAfter !== false,
+      })
+      const [saving, setSaving] = useState(false)
+      const locked = key => Array.isArray(settings.locked) && settings.locked.includes(key)
+      const set = (key, value) => setDraft(current => ({ ...current, [key]: value }))
+      const submit = async () => {
+        setSaving(true)
+        try {
+          await onSave(draft)
+        } finally {
+          setSaving(false)
+        }
+      }
+      return h('div', { className: 'bs-settings' },
+        h('div', { className: 'bs-sectionhead' }, h('h3', null, t('settings'))),
+        h('p', { className: 'bs-hint' }, t('settingsHint')),
+        h('div', { className: 'bs-settingsgrid' },
+          h(Field, { label: t('copyWarnMB'), hint: locked('copyWarnMB') ? t('locked') : `0 – ${state.limits?.maxCopyMB ?? 1536}` },
+            h('input', {
+              className: 'bs-input',
+              type: 'number',
+              min: 0,
+              max: state.limits?.maxCopyMB ?? 1536,
+              value: draft.copyWarnMB,
+              disabled: locked('copyWarnMB'),
+              onChange: event => set('copyWarnMB', Number(event.target.value) || 0),
+            })),
+          h(Field, { label: t('capacityWaitMs'), hint: locked('capacityWaitMs') ? t('locked') : '0 – 3600000' },
+            h('input', {
+              className: 'bs-input',
+              type: 'number',
+              min: 0,
+              max: 3600000,
+              step: 1000,
+              value: draft.capacityWaitMs,
+              disabled: locked('capacityWaitMs'),
+              onChange: event => set('capacityWaitMs', Number(event.target.value) || 0),
+            }))),
+        h('label', { className: 'bs-check' },
+          h('input', { type: 'checkbox', checked: draft.linkDeps, disabled: locked('linkDeps'), onChange: event => set('linkDeps', event.target.checked) }),
+          h('span', null, t('linkDeps')),
+          locked('linkDeps') ? h('span', { className: 'bs-hint' }, t('locked')) : null),
+        h('label', { className: 'bs-check' },
+          h('input', { type: 'checkbox', checked: draft.verifyAfter, disabled: locked('verifyAfter'), onChange: event => set('verifyAfter', event.target.checked) }),
+          h('span', null, t('verifyAfterDefault')),
+          locked('verifyAfter') ? h('span', { className: 'bs-hint' }, t('locked')) : null),
+        h('div', { className: 'bs-actions' },
+          h('button', { type: 'button', className: 'bs-primary', disabled: saving, onClick: () => { void submit() } },
+            saving ? '…' : t('saveSettings'))))
+    }
+
+    /**
      * Main panel.
      * @param {object} props - injected close/translator/store.
      * @returns {object} element.
@@ -879,6 +1064,8 @@ window.__ModuleLoader__.load({
         archive: groupId => { void archiveGroup(groupId, t('confirmArchive')) },
         select: groupId => setState(current => ({ ...current, selectedId: groupId, view: 'group', compare: false })),
         create: () => setState(current => ({ ...current, view: 'create', selectedId: null, compare: false })),
+        settings: () => setState(current => ({ ...current, view: 'settings', compare: false })),
+        saveSettings: draft => { void saveSettings(draft, t) },
         setForm: patch => setState(current => ({ ...current, form: { ...current.form, ...patch } })),
       }
 
@@ -893,6 +1080,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'bs-headmeta' },
                 state.meta ? h('span', null, state.meta.cwd) : null,
                 state.meta?.model ? h('span', { className: 'bs-modelchip' }, `${state.meta.model.provider}/${state.meta.model.model}`) : null),
+              h('button', { type: 'button', className: 'bs-iconbtn', 'aria-label': t('settings'), title: t('settings'), onClick: () => actions.settings() }, '⚙'),
               h('button', { type: 'button', className: 'bs-iconbtn', 'aria-label': t('cancel'), onClick: close }, '✕')),
             state.error ? h('div', { className: 'bs-error' }, `${t('errorPrefix')}: ${state.error}`) : null,
             state.banner ? h('div', { className: `bs-banner bs-banner-${state.banner.kind}` },
@@ -923,13 +1111,22 @@ window.__ModuleLoader__.load({
                 h('div', { className: 'bs-sidefoot' }, h('button', { type: 'button', className: 'bs-link', onClick: () => refresh() }, t('refresh')))),
               h('main', { className: 'bs-main' },
                 state.loading ? h('div', { className: 'bs-empty' }, t('loading')) : null,
-                state.view === 'create' || !selected
-                  ? h(CreateView, { state, setState, onCreate: () => { void createGroup() }, t })
-                  : h(GroupView, { group: selected, state, actions, t }))),
+                state.view === 'settings'
+                  ? h(SettingsView, { state, t, onSave: actions.saveSettings })
+                  : state.view === 'create' || !selected
+                    ? h(CreateView, { state, setState, onCreate: () => { void createGroup() }, t })
+                    : h(GroupView, { group: selected, state, actions, t }))),
             state.diff.open ? h('div', { className: 'bs-diffbackdrop', onMouseDown: event => { if (event.target === event.currentTarget) setState(current => ({ ...current, diff: { ...current.diff, open: false } })) } },
               h('div', { className: 'bs-diffpanel' },
                 h('header', { className: 'bs-diffhead' },
                   h('strong', null, state.diff.title),
+                  h('button', {
+                    type: 'button',
+                    className: 'bs-link',
+                    onClick: async () => {
+                      if (await copyText(state.diff.text)) setState(current => ({ ...current, banner: { kind: 'ok', text: t('copied') } }))
+                    },
+                  }, t('copyDiff')),
                   h('button', { type: 'button', className: 'bs-iconbtn', onClick: () => setState(current => ({ ...current, diff: { ...current.diff, open: false } })) }, '✕')),
                 state.diff.loading
                   ? h('div', { className: 'bs-empty' }, t('loading'))
@@ -1025,6 +1222,12 @@ window.__ModuleLoader__.load({
       '.bs-answer{white-space:pre-wrap;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,#1f2937);cursor:pointer;border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-2,rgba(0,0,0,.02))}',
       '.bs-answer-clamp{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}',
       '.bs-answer-small{-webkit-line-clamp:8;font-size:11.5px}',
+      '.bs-answerbtn{margin-left:auto;font-size:11px}',
+      '.bs-activity{display:flex;align-items:center;gap:6px;margin:0 0 6px;padding:5px 8px;border-radius:7px;background:var(--dsw-alias-bg-layer-2,rgba(0,0,0,.03));border-left:3px solid var(--dsw-alias-brand-primary,#4d6bfe);font-size:11px;color:var(--dsw-alias-label-secondary,#6b7280);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.bs-activitydot{width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-brand-primary,#4d6bfe);flex:none;animation:bs-pulse 1.4s ease-in-out infinite}',
+      '@keyframes bs-pulse{0%,100%{opacity:.35}50%{opacity:1}}',
+      '.bs-settings{padding:16px;overflow:auto}',
+      '.bs-settingsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:10px 0}',
       '.bs-cardactions{display:flex;align-items:center;gap:4px;margin-top:auto;padding-top:4px}',
       '.bs-promote{margin-left:auto}',
       '.bs-warnpill{background:#fef3c7;color:#92400e;font-size:10.5px;padding:1px 6px;border-radius:999px}',
@@ -1042,7 +1245,7 @@ window.__ModuleLoader__.load({
       '.bs-compare thead th{background:var(--dsw-alias-bg-layer-2,rgba(0,0,0,.03));font-size:11.5px}',
       '.bs-compare tbody th{color:var(--dsw-alias-label-secondary,#6b7280);font-weight:600;white-space:nowrap}',
       '.bs-compare-answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:9px}',
-      '.bs-compare-answerhead{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px}',
+      '.bs-compare-answerhead{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px;flex-wrap:wrap}',
       '.bs-diffbackdrop{position:absolute;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:3}',
       '.bs-diffpanel{width:min(900px,94%);height:min(600px,88%);background:var(--dsw-alias-bg-layer-1,#fff);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.12))}',
       '.bs-diffhead{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.09))}',

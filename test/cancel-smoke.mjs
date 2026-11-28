@@ -26,6 +26,18 @@ const agent = {
   model: { current: () => ({ provider: 'p', model: 'm' }) },
   inject: () => {},
 }
+let childListener = null
+const childSession = { header: { id: 'child-running', cwd: workspace } }
+const childAgent = {
+  id: 'child-running',
+  session: childSession,
+  ctx: {
+    on: (event, listener) => {
+      if (event === 'session/event') childListener = listener
+      return () => { childListener = null }
+    },
+  },
+}
 const ctx = {
   logger: () => ({ info() {} }),
   effect: fn => {
@@ -34,7 +46,7 @@ const ctx = {
   },
   tools: { register: () => {} },
   connection: { fetch: { register: definition => routes.set(definition.path, definition) } },
-  agents: { get: id => (id === 'session-cancel' ? agent : undefined) },
+  agents: { get: id => (id === 'session-cancel' ? agent : (id === 'child-running' ? childAgent : undefined)) },
   subagents: {
     startActivation: async spec => {
       if (spec.label.includes('QUEUED')) {
@@ -103,6 +115,10 @@ const running = await call('/api/branch-studio/create', {
 })
 assert(running.ok === true, running.error?.message)
 assert(await waitStatus(running.group.id, 'running'), 'branch reached running')
+childListener?.(childSession, { type: 'tool/call', data: { name: 'Read', arguments: '{"file_path":"a.txt"}' } })
+const live = await call('/api/branch-studio/state?sessionId=session-cancel')
+const liveBranch = live.groups.find(item => item.id === running.group.id)?.branches[0]
+assert(liveBranch?.activity?.name === 'Read', 'live activity is reported while running')
 await call('/api/branch-studio/cancel', { sessionId: 'session-cancel', branch: running.group.branches[0].id })
 assert(interrupts === 1, `child interrupted once (got ${interrupts})`)
 const cancelledRunning = await waitStatus(running.group.id, 'cancelled')

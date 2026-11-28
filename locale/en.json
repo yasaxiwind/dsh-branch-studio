@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Branch studio",
-    "description": "Fan out isolated branches from the current session, run each with its own model and prompt, compare answers, file changes and verification results, then promote the winner back into the workspace."
+    "description": "Fan out isolated branches from the current session, run each with its own model and prompt, compare answers, file changes and verification results, then promote the winner back into the workspace.",
+    "detail": "docs/DETAIL.md"
   }
 }

@@ -1,5 +1,11 @@
 # Release history
 
+## 0.2.0 (2026-11-28)
+
+- npm: [`dsh-branch-studio@0.2.0`](https://www.npmjs.com/package/dsh-branch-studio/v/0.2.0)
+- Live branch activity, settings panel, detail-page preview, answer/diff copy controls and an English README.
+- GitHub Release: [v0.2.0](https://github.com/yasaxiwind/dsh-branch-studio/releases/tag/v0.2.0)
+
 ## 0.1.2 (2026-11-27)
 
 - npm: [`dsh-branch-studio@0.1.2`](https://www.npmjs.com/package/dsh-branch-studio/v/0.1.2)

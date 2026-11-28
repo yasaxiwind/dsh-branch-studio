@@ -30,10 +30,14 @@ const required = [
   'locale/en.json',
   'locale/zh.json',
   'README.md',
+  'README.en.md',
   'LICENSE',
   'CHANGELOG.md',
   'SECURITY.md',
   'docs/SECURITY.md',
+  'docs/DETAIL.md',
+  'docs/DETAIL.zh.md',
+  'docs/preview.svg',
 ]
 for (const file of required) requireFile(file)
 
@@ -45,7 +49,17 @@ if (!client.includes('__ModuleLoader__')) fail('client.js does not export a Modu
 for (const file of ['locale/en.json', 'locale/zh.json']) {
   const bytes = readFileSync(join(root, file))
   if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) fail(`${file} starts with a UTF-8 BOM`)
-  JSON.parse(bytes.toString('utf8'))
+  const locale = JSON.parse(bytes.toString('utf8'))
+  const detail = locale.meta?.detail
+  if (detail !== undefined) {
+    const detailFile = join(root, detail)
+    if (!existsSync(detailFile)) fail(`${file} declares a missing detail document ${detail}`)
+    const markdown = readFileSync(detailFile, 'utf8')
+    const images = markdown.split('\n').filter(line => /^!\[[^\]]*\]\([^)]+\)\s*$/.test(line.trim()))
+    if (images.length !== 1) fail(`${detail} must contain exactly one image line`)
+    const image = images[0].match(/^!\[[^\]]*\]\(([^)]+)\)/)?.[1]
+    if (!image || !existsSync(join(root, 'docs', image))) fail(`${detail} references a missing image`)
+  }
 }
 for (const file of ['index.js', 'client.js']) {
   if (!readFileSync(join(root, file), 'utf8').includes('branch')) fail(`${file} looks wrong`)

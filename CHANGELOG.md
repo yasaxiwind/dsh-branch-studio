@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-11-28)
+
+### Features
+
+- **Live activity**: while a branch runs, its card shows the latest tool call or answering step.
+- **Settings panel**: the gear in the header edits the large-directory warning, the subagent-slot wait, dependency sharing and the default post-promotion verification. Values are saved under `~/.dsh/branch-studio/settings.json`; explicit profile config still wins and is shown as locked.
+- **Detail preview**: the Plugin Manager detail page now has a feature illustration and descriptions in English and Chinese.
+- **Answer controls**: compare answers can be expanded and copied; each branch card can copy its answer; the diff viewer can copy the full diff.
+- **English README**: `README.en.md`.
+
 ## 0.1.2 (2026-11-27)
 
 Documentation-only release. No runtime behavior changed.

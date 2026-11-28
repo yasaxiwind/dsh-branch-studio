@@ -52,7 +52,11 @@ const DEFAULTS = {
   budgetPollMs: 5000,
   capacityWaitMs: 300000,
   capacityRetryMs: 3000,
+  verifyAfter: true,
 }
+
+/** Settings the panel may edit; profile `config` still wins and is shown as locked. */
+const SETTINGS_KEYS = ['copyWarnMB', 'capacityWaitMs', 'linkDeps', 'verifyAfter']
 
 const SKIP_DIRS = new Set([
   '.git', '.hg', '.svn', '.dsh-branch-studio', 'node_modules', '__pycache__',
@@ -562,7 +566,44 @@ function iso(value) {
  * @returns {void}
  */
 export function apply(ctx, config) {
-  const cfg = { ...DEFAULTS, ...(config ?? {}) }
+  const profileConfig = config ?? {}
+  const settingsFile = join(dshHome(), 'branch-studio', 'settings.json')
+  /**
+   * Read panel-saved settings; a corrupt file falls back to defaults.
+   * @returns {object} saved values.
+   */
+  const readSavedSettings = () => {
+    try {
+      const value = JSON.parse(readFileSync(settingsFile, 'utf8'))
+      return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {}
+    } catch {
+      return {}
+    }
+  }
+  const savedSettings = readSavedSettings()
+  const cfg = { ...DEFAULTS, ...savedSettings, ...profileConfig }
+  const lockedSettings = SETTINGS_KEYS.filter(key => Object.hasOwn(profileConfig, key))
+  /**
+   * Persist the editable settings atomically and apply them in memory.
+   * @param {object} patch - validated field values.
+   * @returns {void}
+   */
+  const writeSettings = patch => {
+    const next = { ...readSavedSettings(), ...patch }
+    mkdirSync(dirname(settingsFile), { recursive: true })
+    const temp = `${settingsFile}.${process.pid}.tmp`
+    writeFileSync(temp, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+    renameSync(temp, settingsFile)
+    Object.assign(cfg, patch)
+  }
+  /** @returns {object} editable settings plus fields locked by the profile. */
+  const settingsView = () => ({
+    copyWarnMB: Number(cfg.copyWarnMB),
+    capacityWaitMs: Number(cfg.capacityWaitMs),
+    linkDeps: cfg.linkDeps !== false,
+    verifyAfter: cfg.verifyAfter !== false,
+    locked: lockedSettings,
+  })
   const state = loadState()
   /** @type {Map<string, {group:object, branch:object, activation:object, controller:AbortController}>} */
   const running = new Map()
@@ -659,6 +700,7 @@ export function apply(ctx, config) {
     promotedAt: iso(branch.promotedAt),
     workspace: branch.workspace ?? null,
     progress: branch.progress ?? null,
+    activity: branch.activity ?? null,
     childId: branch.childId ?? null,
     warning: branch.warning ?? '',
     maxTokens: branch.maxTokens ?? null,
@@ -905,6 +947,56 @@ export function apply(ctx, config) {
   }
 
   /**
+   * Watch a child's session for its latest tool/answer activity.
+   * @param {object} branch - branch record.
+   * @param {object} entry - running entry that owns the disposer.
+   * @returns {void}
+   */
+  function attachActivity(branch, entry) {
+    let child
+    try {
+      child = ctx.agents.get(branch.childId)
+    } catch {
+      child = undefined
+    }
+    let childSession = child?.session
+    if (!childSession) {
+      try {
+        childSession = ctx.sessions.get(branch.childId)
+      } catch {
+        childSession = undefined
+      }
+    }
+    const source = child?.ctx?.on ? child.ctx : ctx
+    if (!source?.on || !childSession) return
+    const dispose = source.on('session/event', (session, event) => {
+      if (session !== childSession && session?.id !== branch.childId) return
+      try {
+        if (event.type === 'tool/call') {
+          branch.activity = {
+            kind: 'tool',
+            name: String(event.data?.name ?? 'tool').slice(0, 40),
+            detail: String(event.data?.arguments ?? '').replace(/\s+/g, ' ').slice(0, 160),
+            at: Date.now(),
+          }
+        } else if (event.type === 'tool/result') {
+          branch.activity = {
+            kind: 'result',
+            name: String(branch.activity?.name ?? 'tool').slice(0, 40),
+            detail: 'finished',
+            at: Date.now(),
+          }
+        } else if (event.type === 'assistant/message') {
+          branch.activity = { kind: 'answer', name: '', detail: 'writing answer', at: Date.now() }
+        }
+      } catch {
+        // activity is advisory; never break the child
+      }
+    })
+    entry.activityDispose = dispose
+  }
+
+  /**
    * Start one branch's child agent.
    * @param {object} group - owning group.
    * @param {object} branch - branch record.
@@ -962,6 +1054,7 @@ export function apply(ctx, config) {
     branch.progress = null
     branch.childId = activation.childId
     running.set(branch.id, { group, branch, activation, controller })
+    attachActivity(branch, running.get(branch.id))
     saveState(state)
     // One timer both samples live token usage for the UI and enforces the
     // optional budget. A child session is gone after settlement, so the last
@@ -998,6 +1091,10 @@ export function apply(ctx, config) {
     const entry = running.get(branch.id)
     if (entry?.tokenTimer) clearInterval(entry.tokenTimer)
     if (branch.cancelRequested || branch.status === 'cancelled') {
+      if (entry?.activityDispose) {
+        try { entry.activityDispose() } catch { /* ignore */ }
+      }
+      branch.activity = null
       branch.status = 'cancelled'
       branch.error = 'cancelled by user'
       branch.endedAt = Date.now()
@@ -1047,6 +1144,10 @@ export function apply(ctx, config) {
       }
       log(`branch ${branch.id} settled as ${branch.status}`)
     } finally {
+      if (entry?.activityDispose) {
+        try { entry.activityDispose() } catch { /* ignore */ }
+      }
+      branch.activity = null
       running.delete(branch.id)
       controls.delete(branch.id)
       saveState(state)
@@ -1708,6 +1809,7 @@ export function apply(ctx, config) {
         childId: null,
         startedAt: null,
         endedAt: null,
+        activity: null,
         durationMs: null,
         tokens: null,
         answer: '',
@@ -1992,7 +2094,38 @@ export function apply(ctx, config) {
           repo: gitInfo?.repo ?? null,
           model,
           limits: { maxBranches: cfg.maxBranches, maxCopyMB: cfg.maxCopyMB },
+          settings: settingsView(),
         }
+      }),
+    },
+    {
+      path: '/api/branch-studio/settings',
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: route(async request => {
+        const body = await request.json()
+        const input = body.settings
+        if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new Error('settings are required')
+        const next = {}
+        for (const key of SETTINGS_KEYS) {
+          if (!Object.hasOwn(input, key)) continue
+          if (lockedSettings.includes(key)) throw new Error(`${key} is overridden by the profile config`)
+          if (key === 'copyWarnMB') {
+            const value = Number(input[key])
+            if (!Number.isFinite(value) || value < 0 || value > cfg.maxCopyMB) throw new Error(`copyWarnMB must be between 0 and ${cfg.maxCopyMB}`)
+            next[key] = Math.round(value)
+          } else if (key === 'capacityWaitMs') {
+            const value = Number(input[key])
+            if (!Number.isFinite(value) || value < 0 || value > 3600000) throw new Error('capacityWaitMs must be between 0 and 3600000')
+            next[key] = Math.round(value)
+          } else {
+            next[key] = input[key] === true
+          }
+        }
+        if (Object.keys(next).length === 0) throw new Error('no editable setting was provided')
+        writeSettings(next)
+        log(`settings updated: ${JSON.stringify(next)}`)
+        return { settings: settingsView() }
       }),
     },
     {

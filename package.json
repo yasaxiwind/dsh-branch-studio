@@ -1,6 +1,6 @@
 {
   "name": "dsh-branch-studio",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Parallel branch studio for DeepSeek Harness: fan out isolated branches from the current session, run each with its own model and prompt, compare answers/files/verification, and promote the winner back into the workspace.",
   "keywords": [
     "dsh",
@@ -31,7 +31,7 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node test/host-smoke.mjs && node test/git-smoke.mjs && node test/queue-smoke.mjs && node test/cancel-smoke.mjs && node test/maintenance-smoke.mjs && node test/security-smoke.mjs && node test/client-smoke.mjs",
+    "test": "node test/host-smoke.mjs && node test/git-smoke.mjs && node test/queue-smoke.mjs && node test/cancel-smoke.mjs && node test/settings-smoke.mjs && node test/maintenance-smoke.mjs && node test/security-smoke.mjs && node test/client-smoke.mjs",
     "test:syntax": "node --check index.js && node --check client.js",
     "verify:package": "node scripts/verify-package.mjs",
     "release:check": "npm run test:syntax && npm test && npm run verify:package"
@@ -52,6 +52,7 @@
     "docs",
     "icon.svg",
     "README.md",
+    "README.en.md",
     "CHANGELOG.md",
     "SECURITY.md",
     "LICENSE"
