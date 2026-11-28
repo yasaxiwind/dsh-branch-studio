@@ -119,6 +119,7 @@ childListener?.(childSession, { type: 'tool/call', data: { name: 'Read', argumen
 const live = await call('/api/branch-studio/state?sessionId=session-cancel')
 const liveBranch = live.groups.find(item => item.id === running.group.id)?.branches[0]
 assert(liveBranch?.activity?.name === 'Read', 'live activity is reported while running')
+assert(liveBranch?.activity?.detail === 'a.txt', 'live activity shows the parsed argument')
 await call('/api/branch-studio/cancel', { sessionId: 'session-cancel', branch: running.group.branches[0].id })
 assert(interrupts === 1, `child interrupted once (got ${interrupts})`)
 const cancelledRunning = await waitStatus(running.group.id, 'cancelled')

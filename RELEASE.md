@@ -1,5 +1,11 @@
 # Release history
 
+## 0.2.1 (2026-11-28)
+
+- npm: [`dsh-branch-studio@0.2.1`](https://www.npmjs.com/package/dsh-branch-studio/v/0.2.1)
+- Live-activity text now shows the parsed command/path instead of raw JSON; layout ellipsizes cleanly.
+- GitHub Release: [v0.2.1](https://github.com/yasaxiwind/dsh-branch-studio/releases/tag/v0.2.1)
+
 ## 0.2.0 (2026-11-28)
 
 - npm: [`dsh-branch-studio@0.2.0`](https://www.npmjs.com/package/dsh-branch-studio/v/0.2.0)

@@ -973,10 +973,22 @@ export function apply(ctx, config) {
       if (session !== childSession && session?.id !== branch.childId) return
       try {
         if (event.type === 'tool/call') {
+          const rawArgs = String(event.data?.arguments ?? '')
+          let detail = rawArgs
+          try {
+            const parsed = JSON.parse(rawArgs)
+            if (parsed !== null && typeof parsed === 'object') {
+              detail = parsed.command ?? parsed.file_path ?? parsed.path ?? parsed.pattern ?? parsed.query ?? parsed.url
+                ?? Object.values(parsed).find(value => typeof value === 'string')
+                ?? rawArgs
+            }
+          } catch {
+            // not JSON; show the raw argument text
+          }
           branch.activity = {
             kind: 'tool',
             name: String(event.data?.name ?? 'tool').slice(0, 40),
-            detail: String(event.data?.arguments ?? '').replace(/\s+/g, ' ').slice(0, 160),
+            detail: String(detail).replace(/\s+/g, ' ').slice(0, 160),
             at: Date.now(),
           }
         } else if (event.type === 'tool/result') {

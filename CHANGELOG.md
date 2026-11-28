@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 (2026-11-28)
+
+- Live activity now shows the meaningful argument (command, file path, pattern) instead of the raw JSON string.
+- The activity line ellipsizes cleanly inside a narrow branch card.
+
 ## 0.2.0 (2026-11-28)
 
 ### Features
